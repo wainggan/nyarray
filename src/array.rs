@@ -67,11 +67,28 @@ impl<const N: usize, T> Array<N, T> {
 		}
 	}
 
-	/// construct an array from possibly uninitialized memory.
+	/// construct an array from a possibly uninitialized array.
 	/// 
 	/// ## safety
 	/// 
 	/// `buf[0..len]` must be fully initialized memory.
+	/// 
+	/// ## examples
+	/// 
+	/// this can be useful in combination with [`Self::into_parts_len()`] to
+	/// reconstruct the array after taking it apart for whatever reason.
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::array::Array;
+	/// let array = array![1, 2, 3 => 3];
+	/// 
+	/// let (buf, len) = array.into_parts_len();
+	/// 
+	/// // do whatever to `buf`
+	/// 
+	/// let array = unsafe { Array::from_parts_len(buf, len) };
+	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
 	pub unsafe fn from_parts_len(buf: [core::mem::MaybeUninit<T>; N], len: usize) -> Self {
@@ -83,6 +100,27 @@ impl<const N: usize, T> Array<N, T> {
 		}
 	}
 
+	/// construct an array from an initialized array.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array::Array;
+	/// let array = Array::<16, i32>::from_parts([1, 2, 3, 4]);
+	/// assert_eq!(array, [1, 2, 3, 4]);
+	/// ```
+	/// 
+	/// ## panics
+	/// 
+	/// this method panics if the const parameter `M` is larger than the
+	/// array capacity (const parameter `N`).
+	/// 
+	/// ```should_panic
+	/// # use nyarray::array::Array;
+	/// // note the input array is larger than the array capacity
+	/// let array = Array::<4, i32>::from_parts([1, 2, 3, 4, 5, 6]);
+	/// // this panics!
+	/// ```
 	#[inline]
 	pub fn from_parts<const M: usize>(buf: [T; M]) -> Self {
 		assert!(M <= N);
@@ -101,6 +139,64 @@ impl<const N: usize, T> Array<N, T> {
 		}
 	}
 
+	/// construct an array from a raw pointer.
+	/// 
+	/// ## safety
+	/// 
+	/// - `ptr` must point to memory valid for reads of `len` elements.
+	/// - `ptr` must be aligned.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array::Array;
+	/// # use std::vec;
+	/// let mut vec = vec![1, 2, 3];
+	/// let array;
+	/// 
+	/// unsafe {
+	///     let ptr = vec.as_ptr();
+	///     let len = vec.len();
+	///     vec.set_len(0);
+	///     array = Array::<4, _>::from_raw_parts(ptr, len);
+	/// }
+	/// 
+	/// assert_eq!(array, [1, 2, 3]);
+	/// ``` 
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn from_raw_parts(ptr: *const T, len: usize) -> Self {
+		let mut new_buf = [const { core::mem::MaybeUninit::uninit() }; N];
+
+		let new_ptr = new_buf.as_mut_ptr();
+
+		unsafe {
+			core::ptr::copy_nonoverlapping(ptr, new_ptr as *mut T, len);
+
+			Self::from_parts_len(new_buf, len)
+		}
+	}
+
+	/// deconstruct an array.
+	/// 
+	/// note that, let `ret` be the output, `ret.0[0..ret.1]` is valid memory. if
+	/// `T` is `Drop`, then forgetting to drop this will leak memory.
+	/// 
+	/// the easiest way to correctly drop this is to reconstruct the array with [`Self::from_parts_len()`].
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::array::Array;
+	/// let array = array![1, 2, 3 => 3];
+	/// 
+	/// let (buf, len) = array.into_parts_len();
+	/// 
+	/// // do whatever to `buf`
+	/// 
+	/// let array = unsafe { Array::from_parts_len(buf, len) };
+	/// ```
 	#[inline]
 	pub fn into_parts_len(self) -> ([core::mem::MaybeUninit<T>; N], usize) {
 		let this = core::mem::ManuallyDrop::new(self);
@@ -116,8 +212,8 @@ impl<const N: usize, T> Array<N, T> {
 	/// ## examples
 	/// 
 	/// ```
-	/// # use nyarray::array::Array;
-	/// let array = Array::<16, ()>::new();
+	/// # use nyarray::array;
+	/// let array = array![1, 2, 3 => 16];
 	/// assert_eq!(array.capacity(), 16);
 	/// ```
 	#[inline]
@@ -131,7 +227,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// 
 	/// ```
 	/// # use nyarray::array;
-	/// let array = array![1, 2, 3 => 3];
+	/// let array = array![1, 2, 3 => 16];
 	/// assert_eq!(array.len(), 3);
 	/// ```
 	#[inline]
@@ -182,7 +278,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
-	/// let array: Array<_, ()> = array![=> 8];
+	/// let array: Array<_, ()> = array![=> 4];
 	/// assert!(array.is_empty());
 	/// ```
 	#[inline]
@@ -190,6 +286,19 @@ impl<const N: usize, T> Array<N, T> {
 		self.len() == 0
 	}
 
+	/// returns a slice containing the array.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::array::Array;
+	/// let array: Array<_, u8> = array![=> 4];
+	/// let slice: &[u8] = array.as_slice();
+	/// // let slice: &[u8] = &array[..]; // works the same
+	/// 
+	/// let string = str::from_utf8(slice);
+	/// ```
 	#[inline]
 	pub fn as_slice(&self) -> &[T] {
 		let out = &self.buf[0..self.len];
@@ -199,6 +308,19 @@ impl<const N: usize, T> Array<N, T> {
 		}
 	}
 
+	/// returns a mutable slice containing the array.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::array::Array;
+	/// let mut array: Array<_, u8> = array![=> 4];
+	/// let mut slice: &mut [u8] = array.as_mut_slice();
+	/// // let mut slice: &mut [u8] = &mut array[..]; // works the same
+	/// 
+	/// let string = str::from_utf8_mut(slice);
+	/// ```
 	#[inline]
 	pub fn as_mut_slice(&mut self) -> &mut [T] {
 		let out = &mut self.buf[0..self.len];
@@ -208,11 +330,19 @@ impl<const N: usize, T> Array<N, T> {
 		}
 	}
 
+	/// returns a raw pointer to the internal buffer.
+	/// 
+	/// this pointer is valid so long as this array is valid. if the array is
+	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
 	pub fn as_ptr(&self) -> *const T {
 		self.buf.as_ptr() as *const T
 	}
 
+	/// returns a mutable raw pointer to the internal buffer.
+	/// 
+	/// this pointer is valid so long as this array is valid. if the array is
+	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
 	pub fn as_mut_ptr(&mut self) -> *mut T {
 		self.buf.as_mut_ptr() as *mut T
@@ -231,9 +361,9 @@ impl<const N: usize, T> Array<N, T> {
 	#[inline]
 	pub fn clear(&mut self) {
 		unsafe {
-			self.set_len(0);
 			let elements = self.as_mut_slice() as *mut [T];
 			core::ptr::drop_in_place(elements);
+			self.set_len(0);
 		}
 	}
 
@@ -289,19 +419,58 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub fn push_checked(&mut self, value: T) -> Result<(), T> {
-		let len = self.len();
-
-		if len >= self.capacity() {
+		if self.len() == self.capacity() {
 			Err(value)
 		} else {
 			unsafe {
-				let ptr = self.as_mut_ptr().add(len);
-
-				core::ptr::write(ptr, value);
-
-				self.set_len(len + 1);
+				// safety: just confirmed there is enough space for another element
+				self.push_unchecked(value);
 			}
 			Ok(())
+		}
+	}
+
+	/// add an element to the end of the array.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::push()`] or
+	/// [`Self::push_checked()`] for safe versions of this.
+	/// 
+	/// ## safety
+	/// 
+	/// there must be enough capacity in the array for at least one more element
+	/// before calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # fn main() -> Result<(), i32> {
+	/// # use nyarray::array;
+	/// let mut array = array![=> 4];
+	/// unsafe {
+	///     // safety: array has capacity of 4 elements.
+	///     array.push_unchecked(1);
+	///     array.push_unchecked(2);
+	///     array.push_unchecked(3);
+	///     array.push_unchecked(4);
+	///    // array.push_unchecked(5); // UB
+	/// }
+	/// assert_eq!(array, [1, 2, 3, 4]);
+	/// # Ok(())
+	/// # }
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn push_unchecked(&mut self, value: T) {
+		unsafe {
+			let len = self.len();
+
+			// safety: caller ensures there is enough space for another element
+			let ptr = self.as_mut_ptr().add(len);
+
+			core::ptr::write(ptr, value);
+
+			// set length to accomodate for new element
+			self.set_len(len + 1);
 		}
 	}
 
@@ -320,15 +489,55 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub fn pop(&mut self) -> Option<T> {
-		let len = self.len();
-		if len == 0 {
+		if self.is_empty() {
 			None
 		} else {
 			unsafe {
-				let len = len - 1;
-				self.set_len(len);
-				Some(core::ptr::read(self.as_ptr().add(len)))
+				// safety: just confirmed there is an element in the array
+				Some(self.pop_unchecked())
 			}
+		}
+	}
+
+	/// remove and return an element from the end of the array.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::pop()`] for
+	/// the safe version.
+	/// 
+	/// ## safety
+	/// 
+	/// there must be at least one element in the array prior to calling
+	/// this method. ie; [`Self::len()`] `!= 0`
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// let mut array = array![1, 2, 3 => 4];
+	/// 
+	/// unsafe {
+	///     // safety: array has 3 elements
+	///     assert_eq!(array.pop_unchecked(), 3);
+	///     assert_eq!(array.pop_unchecked(), 2);
+	///     assert_eq!(array.pop_unchecked(), 1);
+	///     // array.pop_unchecked() // UB
+	/// }
+	/// 
+	/// assert!(array.is_empty());
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn pop_unchecked(&mut self) -> T {
+		unsafe {
+			// safety: caller ensures there is at least one element.
+
+			// underflows if no elements
+			let len = self.len() - 1;
+
+			// first set len to new len
+			self.set_len(len);
+
+			core::ptr::read(self.as_ptr().add(len))
 		}
 	}
 
@@ -340,10 +549,13 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
+	/// 
 	/// array.insert(2, 10);
 	/// assert_eq!(array, [1, 2, 10, 3]);
+	/// 
 	/// array.insert(0, 20);
 	/// assert_eq!(array, [20, 1, 2, 10, 3]);
+	/// 
 	/// array.insert(5, 30);
 	/// assert_eq!(array, [20, 1, 2, 10, 3, 30]);
 	/// ```
@@ -381,10 +593,13 @@ impl<const N: usize, T> Array<N, T> {
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
+	/// 
 	/// array.insert_checked(2, 10)?;
 	/// assert_eq!(array, [1, 2, 10, 3]);
+	/// 
 	/// array.insert_checked(0, 20)?;
 	/// assert_eq!(array, [20, 1, 2, 10, 3]);
+	/// 
 	/// array.insert_checked(5, 30)?;
 	/// assert_eq!(array, [20, 1, 2, 10, 3, 30]);
 	/// # Ok(())
@@ -392,16 +607,57 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub fn insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
-		let len = self.len();
-		if index > len {
+		if index > self.len() {
 			return Err(element);
 		}
 
-		if len + 1 > self.capacity() {
+		if self.len() + 1 > self.capacity() {
 			return Err(element);
 		}
 
 		unsafe {
+			// safety: just confirmed index is in bounds and there is enough capacity
+			self.insert_unchecked(index, element);
+		}
+
+		Ok(())
+	}
+
+	/// insert an element into any index of the array, shifting
+	/// all elements after towards the end.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::insert_checked()`] or
+	/// [`Self::insert()`] for safe versions.
+	/// 
+	/// ## safety
+	/// 
+	/// - there must be enough capacity in the array for at least one more element
+	///   prior to calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
+	/// - `index` `<=` [`Self::len()`]
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// let mut array = array![=> 4];
+	/// 
+	/// unsafe {
+	///     // safety: array has capacity of 4 elements.
+	///     array.insert_unchecked(0, 1);
+	///     array.insert_unchecked(0, 2);
+	///     array.insert_unchecked(0, 3);
+	///     array.insert_unchecked(0, 4);
+	///     // array.insert_unchecked(0, 5); // UB
+	/// }
+	/// 
+	/// assert_eq!(array, [4, 3, 2, 1]);
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn insert_unchecked(&mut self, index: usize, element: T) {
+		unsafe {
+			let len = self.len();
+
 			let ptr = self.as_mut_ptr().add(index);
 
 			if index != len {
@@ -412,8 +668,6 @@ impl<const N: usize, T> Array<N, T> {
 
 			self.set_len(len + 1);
 		}
-
-		Ok(())
 	}
 
 	/// insert an element into any index of the array, moving the element
@@ -424,10 +678,13 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
+	/// 
 	/// array.swap_insert(2, 10);
 	/// assert_eq!(array, [1, 2, 10, 3]);
+	/// 
 	/// array.swap_insert(0, 20);
 	/// assert_eq!(array, [20, 2, 10, 3, 1]);
+	/// 
 	/// array.swap_insert(5, 30);
 	/// assert_eq!(array, [20, 2, 10, 3, 1, 30]);
 	/// ```
@@ -465,10 +722,13 @@ impl<const N: usize, T> Array<N, T> {
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
+	/// 
 	/// array.swap_insert_checked(2, 10)?;
 	/// assert_eq!(array, [1, 2, 10, 3]);
+	/// 
 	/// array.swap_insert_checked(0, 20)?;
 	/// assert_eq!(array, [20, 2, 10, 3, 1]);
+	/// 
 	/// array.swap_insert_checked(5, 30)?;
 	/// assert_eq!(array, [20, 2, 10, 3, 1, 30]);
 	/// # Ok(())
@@ -476,18 +736,61 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub fn swap_insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
-		let len = self.len();
-		if index > len {
+		if index > self.len() {
 			return Err(element);
 		}
 
-		if len + 1 > self.capacity() {
+		if self.len() + 1 > self.capacity() {
 			return Err(element);
 		}
 
 		unsafe {
+			// safety: just confirmed index is in bounds and there is enough capacity
+			self.swap_insert_unchecked(index, element);
+		}
+
+		Ok(())
+	}
+
+	/// insert an element into any index of the array, moving the element
+	/// that was previously there to the end.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::swap_insert_checked()`]
+	/// or [`Self::swap_insert()`] for safe versions.
+	/// 
+	/// ## safety
+	/// 
+	/// - there must be enough capacity in the array for at least one more element
+	///   prior to calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
+	/// - `index` `<=` [`Self::len()`]
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// let mut array = array![=> 4];
+	/// 
+	/// unsafe {
+	///     // safety: array has a capacity of 4
+	///     array.swap_insert_unchecked(0, 1);
+	///     array.swap_insert_unchecked(0, 2);
+	///     array.swap_insert_unchecked(0, 3);
+	///     array.swap_insert_unchecked(0, 4);
+	///     // array.swap_insert_unchecked(0, 5); // UB
+	/// }
+	/// 
+	/// assert_eq!(array, [4, 1, 2, 3])
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn swap_insert_unchecked(&mut self, index: usize, element: T) {
+		unsafe {
+			let len = self.len();
+
 			let ptr = self.as_mut_ptr();
 
+			// safety: caller ensures `index` is in bounds and there is enough
+			// space for another element.
 			let old_ptr = ptr.add(index);
 			let new_ptr = ptr.add(len);
 
@@ -496,8 +799,6 @@ impl<const N: usize, T> Array<N, T> {
 			
 			self.set_len(len + 1);
 		}
-
-		Ok(())
 	}
 
 	/// remove and return an element out of any index of the array,
@@ -562,12 +863,51 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub fn remove_checked(&mut self, index: usize) -> Option<T> {
-		let len = self.len();
-		if index >= len {
+		if index >= self.len() {
 			return None;
 		}
 
 		unsafe {
+			Some(self.remove_unchecked(index))
+		}
+	}
+
+	/// remove and return an element out of any index of the array,
+	/// shifting all elements after towards the start.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::remove_checked()`]
+	/// or [`Self::remove()`] for safe versions.
+	/// 
+	/// ## safety
+	/// 
+	/// - there must be at least one element in the array prior to calling
+	///   this method. ie; [`Self::len()`] `!= 0`
+	/// - `index` `<` [`Self::len()`]
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// let mut array = array![1, 2, 3, 4 => 4];
+	/// 
+	/// unsafe {
+	///     // safety: array has 4 elements.
+	///     assert_eq!(array.remove_unchecked(0), 1);
+	///     assert_eq!(array.remove_unchecked(0), 2);
+	///     assert_eq!(array.remove_unchecked(0), 3);
+	///     assert_eq!(array.remove_unchecked(0), 4);
+	///     // array.remove_unchecked(0) // UB
+	/// }
+	/// 
+	/// assert!(array.is_empty());
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn remove_unchecked(&mut self, index: usize) -> T {		
+		unsafe {
+			let len = self.len();
+
+			// safety: caller ensures index is in bounds and there is at least one element
 			let ptr = self.as_mut_ptr().add(index);
 
 			let old = core::ptr::read(ptr);
@@ -576,7 +916,7 @@ impl<const N: usize, T> Array<N, T> {
 
 			self.set_len(len - 1);
 
-			Some(old)
+			old
 		}
 	}
 
@@ -648,26 +988,63 @@ impl<const N: usize, T> Array<N, T> {
 		}
 
 		unsafe {
+			Some(self.swap_remove_unchecked(index))
+		}
+	}
+
+	/// remove and return an element from any index of the array,
+	/// moving the element that was previously at the end to there.
+	/// returns `None` if `index` is not `0..self.len()`.
+	/// 
+	/// this is the unsafe version of this method. see [`Self::swap_remove_checked()`]
+	/// or [`Self::swap_remove()`] for safe versions.
+	/// 
+	/// ## safety
+	/// 
+	/// - there must be at least one element in the array prior to calling
+	///   this method. ie; [`Self::len()`] `!= 0`
+	/// - `index` `<` [`Self::len()`]
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// let mut array = array![1, 2, 3, 4 => 4];
+	/// 
+	/// unsafe {
+	///     // safety: array has 4 elements.
+	///     assert_eq!(array.swap_remove_unchecked(0), 1);
+	///     assert_eq!(array.swap_remove_unchecked(0), 4);
+	///     assert_eq!(array.swap_remove_unchecked(0), 3);
+	///     assert_eq!(array.swap_remove_unchecked(0), 2);
+	///     // array.swap_remove_unchecked(0) // UB
+	/// }
+	/// 
+	/// assert!(array.is_empty());
+	/// ```
+	#[inline]
+	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
+	pub unsafe fn swap_remove_unchecked(&mut self, index: usize) -> T {
+		unsafe {
+			let len = self.len();
+
 			let ptr = self.as_mut_ptr();
 			
+			// safety: caller ensures index is in bounds and there is at least one element
 			let old = core::ptr::read(ptr.add(index));
 			
 			core::ptr::copy(ptr.add(len - 1), ptr.add(index), 1);
 			
 			self.set_len(len - 1);
 			
-			Some(old)
+			old
 		}
 	}
 }
 
 impl<const N: usize, T> Drop for Array<N, T> {
 	fn drop(&mut self) {
-		for i in self.iter_mut() {
-			unsafe {
-				core::ptr::drop_in_place(i);
-			}
-		}
+		self.clear();
 	}
 }
 

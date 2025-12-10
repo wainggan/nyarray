@@ -1,15 +1,19 @@
 //! a combination of the stack-allocated [`crate::array::Array`] and the heap-allocated `Vec`.
 //! 
+//! since this combines the functionality of both structures, the public api ends up being
+//! something of a union of what either can safely do, meaning there's a lot of functionality
+//! either `Vec` and `Array` individually have that `SwitchVec` doesn't.
+//! 
 //! ## examples
 //! 
 //! ```
 //! # use nyarray::switch::SwitchVec;
 //! let mut vec = SwitchVec::<16, _>::new(); // new vec with capacity of 16
 //! 
-//! // `SmolVec` functions very similarly to `Vec`.
+//! // `SwitchVec` functions very similarly to `Vec`.
 //! 
-//! vec.push(1);
-//! vec.push(2);
+//! vec.push(1).unwrap();
+//! vec.push(2).unwrap();
 //!
 //! assert_eq!(vec.len(), 2);
 //! assert_eq!(vec[0], 1);
@@ -29,7 +33,7 @@
 //! assert_eq!(vec, [7, 1, 2, 3]);
 //! ```
 //! 
-//! the differentiating detail here is that, by default, `SmolVec` is stack-allocated.
+//! the differentiating detail here is that, by default, `SwitchVec` is stack-allocated.
 //! if the `std` feature is enabled, when its capacity is reached, it allocates on the heap.
 //! 
 //! ```
@@ -38,14 +42,14 @@
 //! 
 //! assert!(!vec.is_heap());
 //! 
-//! vec.push(1);
-//! vec.push(2);
-//! vec.push(3);
-//! vec.push(4);
+//! vec.push(1).unwrap();
+//! vec.push(2).unwrap();
+//! vec.push(3).unwrap();
+//! vec.push(4).unwrap();
 //! 
 //! assert!(!vec.is_heap());
 //! 
-//! vec.push(5);
+//! vec.push(5).unwrap();
 //! 
 //! assert!(vec.is_heap());
 //! ```
@@ -98,6 +102,26 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 	}
 
+	/// deconstruct this vec into a `Vec`, or `Err` if [`Self::is_heap()`] is `false`.
+	/// 
+	/// this method is not available in `no_std`.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::switch::SwitchVec;
+	/// # use std::vec;
+	/// let vec = SwitchVec::<4, _>::from_vec(vec![0, 1, 2]);
+	/// ```
+	#[cfg(feature = "std")]
+	#[inline]
+	pub fn into_vec(self) -> Result<std::vec::Vec<T>, Self> {
+		match self.inner {
+			Inner::Stack(..) => Err(self),
+			Inner::Heap(vec) => Ok(vec),
+		}
+	}
+
 	/// construct a [`SwitchVec`] from an [`crate::array::Array`].
 	/// 
 	/// ## examples
@@ -111,6 +135,16 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	pub fn from_array(array: crate::array::Array<N, T>) -> Self {
 		Self {
 			inner: Inner::Stack(array)
+		}
+	}
+
+	/// deconstruct this vec into an `Array`, or `Err` if [`Self::is_heap()`] is `true`.
+	#[inline]
+	pub fn into_array(self) -> Result<crate::array::Array<N, T>, Self> {
+		match self.inner {
+			Inner::Stack(array) => Ok(array),
+			#[cfg(feature = "std")]
+			Inner::Heap(..) => Err(self),
 		}
 	}
 
@@ -206,6 +240,19 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 	}
 
+	/// returns a slice containing the vector.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::switch::SwitchVec;
+	/// let vector: SwitchVec<_, u8> = SwitchVec::from_array(array![=> 4]);
+	/// let slice: &[u8] = vector.as_slice();
+	/// // let slice: &[u8] = &vector[..]; // works the same
+	/// 
+	/// let string = str::from_utf8(slice);
+	/// ```
 	#[inline]
 	pub fn as_slice(&self) -> &[T] {
 		match &self.inner {
@@ -215,6 +262,19 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 	}
 
+	/// returns a mutable slice containing the vector.
+	/// 
+	/// ## examples
+	/// 
+	/// ```
+	/// # use nyarray::array;
+	/// # use nyarray::switch::SwitchVec;
+	/// let mut vector: SwitchVec<_, u8> = SwitchVec::from_array(array![=> 4]);
+	/// let mut slice: &mut [u8] = vector.as_mut_slice();
+	/// // let mut slice: &mut [u8] = &mut vector[..]; // works the same
+	/// 
+	/// let string = str::from_utf8_mut(slice);
+	/// ```
 	#[inline]
 	pub fn as_mut_slice(&mut self) -> &mut [T] {
 		match &mut self.inner {
@@ -224,6 +284,14 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 	}
 
+	/// returns a raw pointer to the internal buffer.
+	/// 
+	/// if the vector is heap-allocated, this pointer is valid for the lifetime
+	/// of the vector. if an operation reallocates, this pointer becomes invalid.
+	/// 
+	/// if the vector is stack-allocated, this pointer is valid for the lifetime
+	/// of the vector, so long as the vector is not moved. if an operation reallocates,
+	/// this pointer becomes invalid.
 	#[inline]
 	pub fn as_ptr(&self) -> *const T {
 		match &self.inner {
@@ -233,6 +301,14 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 	}
 
+	/// returns a mutable raw pointer to the internal buffer.
+	/// 
+	/// if the vector is heap-allocated, this pointer is valid for the lifetime
+	/// of the vector. if an operation reallocates, this pointer becomes invalid.
+	/// 
+	/// if the vector is stack-allocated, this pointer is valid for the lifetime
+	/// of the vector, so long as the vector is not moved. if an operation reallocates,
+	/// this pointer becomes invalid.
 	#[inline]
 	pub fn as_mut_ptr(&mut self) -> *mut T {
 		match &mut self.inner {
@@ -263,8 +339,10 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// move this vector's elements onto the heap, if not already done so.
+	/// returns `true` if successful.
+	/// returns `false` if the operation failed for whatever reason.
 	/// 
-	/// in `no_std`, this is a no-op.
+	/// in `no_std`, this is a no-op, and always returns `false``.
 	/// 
 	/// ## examples
 	/// 
@@ -279,7 +357,8 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// 
 	/// assert!(vec.is_heap());
 	/// ```
-	pub fn switch_heap(&mut self) {
+	#[must_use]
+	pub fn switch_heap(&mut self) -> bool {
 		#[cfg(feature = "std")]
 		{
 			let array = match &mut self.inner {
@@ -287,9 +366,17 @@ impl<const N: usize, T> SwitchVec<N, T> {
 					array
 				}
 				Inner::Heap(..) => {
-					return;
+					return true;
 				}
 			};
+
+			// create vector first
+			let mut vec = std::vec::Vec::new();
+
+			// try allocate; if fails, bail before anything else happens
+			if vec.try_reserve_exact(array.len()).is_err() {
+				return false;
+			}
 
 			// first read array
 			let array = unsafe {
@@ -300,7 +387,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 			unsafe {
 				core::ptr::write(
 					&mut self.inner,
-					Inner::Heap(std::vec::Vec::new()),
+					Inner::Heap(vec),
 				);
 			}
 
@@ -310,16 +397,23 @@ impl<const N: usize, T> SwitchVec<N, T> {
 			};
 
 			// insert array elements into vector
-			vec.reserve_exact(array.len());
-			vec.extend(array); 
+			vec.extend(array);
+
+			true
+		}
+		#[cfg(not(feature = "std"))]
+		{
+			false
 		}
 	}
 
 	/// move this vector's elements onto the heap, if not already done so.
 	/// this is a lossy operation - elements that don't fit in the array
 	/// will be discarded.
+	/// returns `true` if successful.
+	/// returns `false` if the operation failed for whatever reason.
 	/// 
-	/// in `no_std`, this is a no-op.
+	/// in `no_std`, this is a no-op, and always returns `true`.
 	/// 
 	/// ## examples
 	/// 
@@ -336,12 +430,13 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// 
 	/// assert_eq!(vec, [1, 2, 3, 4]);
 	/// ```
-	pub fn switch_stack(&mut self) {
+	#[must_use]
+	pub fn switch_stack(&mut self) -> bool {
 		#[cfg(feature = "std")]
 		{
 			let vec = match &mut self.inner {
 				Inner::Stack(..) => {
-					return;
+					return true;
 				}
 				Inner::Heap(vec) => {
 					vec
@@ -368,15 +463,23 @@ impl<const N: usize, T> SwitchVec<N, T> {
 
 			// insert vector elements into array
 			array.extend(vec);
+
+			true
+		}
+		#[cfg(not(feature = "std"))]
+		{
+			true
 		}
 	}
 
 	/// ensure [`Self::capacity()`] has enough space for `additional` number of element.
+	/// returns `true` if there is enough space, or if not, memory was successfully allocated.
+	/// returns `false` if memory could not be allocated for whatever reason.
 	/// 
 	/// if [`Self::is_heap()`] is `false` and there isn't enough array capacity, this will
 	/// move the vector's elements to the heap.
 	/// 
-	/// if `no_std`, this is a no-op.
+	/// if `no_std`, this is a no-op, and always returns `false`.
 	/// 
 	/// ## examples
 	/// 
@@ -396,34 +499,40 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// assert_eq!(vec.len(), 4);
 	/// assert!(vec.is_heap());
 	/// ```
-	pub fn reserve(&mut self, additional: usize) {
+	#[must_use]
+	pub fn reserve(&mut self, additional: usize) -> bool {
 		#[cfg(feature = "std")]
 		{
 			match &mut self.inner {
 				Inner::Stack(array) => {
 					if array.len() + additional <= array.capacity() {
-						return;
+						return true;
 					}
-					self.switch_heap();
+
+					if !self.switch_heap() {
+						return false
+					}
 
 					let Inner::Heap(vec) = &mut self.inner else {
 						unreachable!();
 					};
 					
-					vec.reserve(additional);
+					vec.try_reserve(additional).is_ok()
 				}
 				Inner::Heap(vec) => {
-					vec.reserve(additional);
+					vec.try_reserve(additional).is_ok()
 				}
 			}
 		}
 		#[cfg(not(feature = "std"))]
 		{
 			_ = additional;
+			false
 		}
 	}
 
-	/// add an element to the end of the vector.
+	/// add an element to the end of the vector, returning
+	/// `Err(T)` if the operation failed.
 	/// 
 	/// ## examples
 	/// 
@@ -431,19 +540,24 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![=> 2]);
-	/// vec.push(0);
-	/// vec.push(1);
-	/// vec.push(2);
+	/// vec.push(0).unwrap();
+	/// vec.push(1).unwrap();
+	/// vec.push(2).unwrap();
 	/// assert_eq!(vec.len(), 3);
 	/// ```
 	#[inline]
-	pub fn push(&mut self, value: T) {
-		self.reserve(1);
+	pub fn push(&mut self, value: T) -> Result<(), T> {
+		if !self.reserve(1) {
+			return Err(value);
+		}
+
 		match &mut self.inner {
 			Inner::Stack(array) => array.push(value),
 			#[cfg(feature = "std")]
 			Inner::Heap(vec) => vec.push(value),
 		}
+
+		Ok(())
 	}
 
 	/// remove and return an element from the end of the vector.
@@ -479,23 +593,28 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3 => 4]);
 	/// 
-	/// vec.insert(2, 10);
+	/// vec.insert(2, 10).unwrap();
 	/// assert_eq!(vec, [1, 2, 10, 3]);
 	/// 
-	/// vec.insert(0, 20);
+	/// vec.insert(0, 20).unwrap();
 	/// assert_eq!(vec, [20, 1, 2, 10, 3]);
 	/// 
-	/// vec.insert(5, 30);
+	/// vec.insert(5, 30).unwrap();
 	/// assert_eq!(vec, [20, 1, 2, 10, 3, 30]);
 	/// ```
 	#[inline]
-	pub fn insert(&mut self, index: usize, element: T) {
-		self.reserve(1);
+	pub fn insert(&mut self, index: usize, element: T) -> Result<(), T> {
+		if !self.reserve(1) {
+			return Err(element);
+		}
+
 		match &mut self.inner {
 			Inner::Stack(array) => array.insert(index, element),
 			#[cfg(feature = "std")]
 			Inner::Heap(vec) => vec.insert(index, element),
 		}
+
+		Ok(())
 	}
 
 	/// remove and return an element out of any index of the vector,
@@ -508,21 +627,27 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3, 4, 5, 6 => 6]);
 	/// 
-	/// assert_eq!(vec.remove(0), 1);
+	/// assert_eq!(vec.remove(0), Some(1));
 	/// assert_eq!(vec, [2, 3, 4, 5, 6]);
 	/// 
-	/// assert_eq!(vec.remove(2), 4);
+	/// assert_eq!(vec.remove(2), Some(4));
 	/// assert_eq!(vec, [2, 3, 5, 6]);
 	/// 
-	/// assert_eq!(vec.remove(3), 6);
+	/// assert_eq!(vec.remove(3), Some(6));
 	/// assert_eq!(vec, [2, 3, 5]);
+	/// 
+	/// assert_eq!(vec.remove(3), None);
 	/// ```
 	#[inline]
-	pub fn remove(&mut self, index: usize) -> T {
+	pub fn remove(&mut self, index: usize) -> Option<T> {
+		if index >= self.len() {
+			return None;
+		}
+
 		match &mut self.inner {
-			Inner::Stack(array) => array.remove(index),
+			Inner::Stack(array) => Some(array.remove(index)),
 			#[cfg(feature = "std")]
-			Inner::Heap(vec) => vec.remove(index),
+			Inner::Heap(vec) => Some(vec.remove(index)),
 		}
 	}
 
@@ -536,21 +661,27 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3, 4, 5, 6 => 6]);
 	/// 
-	/// assert_eq!(vec.swap_remove(0), 1);
+	/// assert_eq!(vec.swap_remove(0), Some(1));
 	/// assert_eq!(vec, [6, 2, 3, 4, 5]);
 	/// 
-	/// assert_eq!(vec.swap_remove(2), 3);
+	/// assert_eq!(vec.swap_remove(2), Some(3));
 	/// assert_eq!(vec, [6, 2, 5, 4]);
 	/// 
-	/// assert_eq!(vec.swap_remove(3), 4);
+	/// assert_eq!(vec.swap_remove(3), Some(4));
 	/// assert_eq!(vec, [6, 2, 5]);
+	/// 
+	/// assert_eq!(vec.swap_remove(3), None);
 	/// ```
 	#[inline]
-	pub fn swap_remove(&mut self, index: usize) -> T {
+	pub fn swap_remove(&mut self, index: usize) -> Option<T> {
+		if index >= self.len() {
+			return None;
+		}
+
 		match &mut self.inner {
-			Inner::Stack(array) => array.swap_remove(index),
+			Inner::Stack(array) => Some(array.swap_remove(index)),
 			#[cfg(feature = "std")]
-			Inner::Heap(vec) => vec.swap_remove(index),
+			Inner::Heap(vec) => Some(vec.swap_remove(index)),
 		}
 	}
 }
@@ -620,7 +751,9 @@ impl<const N: usize, T, I: core::slice::SliceIndex<[T]>> core::ops::IndexMut<I> 
 impl<const N: usize, T> Extend<T> for SwitchVec<N, T> {
 	fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
 		for i in iter {
-			self.push(i);
+			if self.push(i).is_err() {
+				break;
+			}
 		}
 	}
 }
@@ -628,7 +761,9 @@ impl<const N: usize, T> Extend<T> for SwitchVec<N, T> {
 impl<'a, const N: usize, T: Copy> Extend<&'a T> for SwitchVec<N, T> {
 	fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
 		for i in iter {
-			self.push(*i);
+			if self.push(*i).is_err() {
+				break;
+			}
 		}
 	}
 }
