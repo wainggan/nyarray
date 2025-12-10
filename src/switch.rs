@@ -479,7 +479,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// if [`Self::is_heap()`] is `false` and there isn't enough array capacity, this will
 	/// move the vector's elements to the heap.
 	/// 
-	/// if `no_std`, this is a no-op, and always returns `false`.
+	/// if `no_std`, this is a no-op.
 	/// 
 	/// ## examples
 	/// 
@@ -527,7 +527,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		#[cfg(not(feature = "std"))]
 		{
 			_ = additional;
-			false
+			array.len() + additional <= array.capacity()
 		}
 	}
 
