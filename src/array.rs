@@ -677,6 +677,12 @@ impl<const N: usize, T> Default for Array<N, T> {
 	}
 }
 
+impl<const N: usize, T: Clone> Clone for Array<N, T> {
+	fn clone(&self) -> Self {
+		self.iter().cloned().collect()
+	}
+}
+
 impl<const N: usize, T> AsRef<[T]> for Array<N, T> {
 	fn as_ref(&self) -> &[T] {
 		self.as_slice()
@@ -835,6 +841,14 @@ impl<'a, const N: usize, T> IntoIterator for &'a mut Array<N, T> {
 	}
 }
 
+impl<const N: usize, T> FromIterator<T> for Array<N, T> {
+	fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+		let mut out = Self::new();
+		out.extend(iter);
+		out
+	}
+}
+
 
 impl<const N: usize, T: PartialOrd> PartialOrd for Array<N, T> {
 	fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
@@ -962,6 +976,12 @@ mod test {
 		drop(iter);
 
 		assert_eq!(unsafe { NUM }, 6);
+	}
+
+	#[test]
+	fn test_iter() {
+		let array = array![std::boxed::Box::new(1) => 4];
+		let _ = array.iter().cloned().collect::<crate::array::Array<4, _>>();
 	}
 }
 

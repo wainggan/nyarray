@@ -561,6 +561,12 @@ impl<const N: usize, T> Default for SwitchVec<N, T> {
 	}
 }
 
+impl<const N: usize, T: Clone> Clone for SwitchVec<N, T> {
+	fn clone(&self) -> Self {
+		self.iter().cloned().collect()
+	}
+}
+
 impl<const N: usize, T> AsRef<[T]> for SwitchVec<N, T> {
 	fn as_ref(&self) -> &[T] {
 		self.as_slice()
@@ -694,6 +700,14 @@ impl<'a, const N: usize, T> IntoIterator for &'a mut SwitchVec<N, T> {
 	}
 }
 
+impl<const N: usize, T> FromIterator<T> for SwitchVec<N, T> {
+	fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+		let mut out = Self::new();
+		out.extend(iter);
+		out
+	}
+}
+
 
 impl<const N: usize, T: PartialOrd> PartialOrd for SwitchVec<N, T> {
 	fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
@@ -744,5 +758,4 @@ impl<const N: usize, T: core::fmt::Debug> core::fmt::Debug for SwitchVec<N, T> {
 		core::fmt::Debug::fmt(self.as_slice(), f)
 	}
 }
-
 
