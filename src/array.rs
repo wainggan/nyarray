@@ -44,6 +44,8 @@
 //! 
 //! of course, at this point, one should consider using `Vec` or similar.
 
+use core::mem::ManuallyDrop;
+
 /// stack-allocated array. see [module level documentation](self) for more.
 pub struct Array<const N: usize, T> {
 	buf: [core::mem::MaybeUninit<T>; N],
@@ -60,7 +62,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// let array = Array::<16, ()>::new(); // array with capacity of 16
 	/// ```
 	#[inline]
-	pub fn new() -> Self {
+	pub const fn new() -> Self {
 		Self {
 			buf: [const { core::mem::MaybeUninit::uninit() }; N],
 			len: 0,
@@ -91,7 +93,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn from_parts_len(buf: [core::mem::MaybeUninit<T>; N], len: usize) -> Self {
+	pub const unsafe fn from_parts_len(buf: [core::mem::MaybeUninit<T>; N], len: usize) -> Self {
 		assert!(len <= N);
 
 		Self {
@@ -122,14 +124,14 @@ impl<const N: usize, T> Array<N, T> {
 	/// // this panics!
 	/// ```
 	#[inline]
-	pub fn from_parts<const M: usize>(buf: [T; M]) -> Self {
+	pub const fn from_parts<const M: usize>(buf: [T; M]) -> Self {
 		assert!(M <= N);
 
 		let buf = core::mem::ManuallyDrop::new(buf);
 
 		let mut new_buf = [const { core::mem::MaybeUninit::uninit() }; N];
 
-		let buf_ptr = buf.as_ptr();
+		let buf_ptr = &buf as *const ManuallyDrop<[T; M]> as *const T;
 		let new_ptr = new_buf.as_mut_ptr();
 
 		unsafe {
@@ -165,7 +167,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ``` 
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn from_raw_parts(ptr: *const T, len: usize) -> Self {
+	pub const unsafe fn from_raw_parts(ptr: *const T, len: usize) -> Self {
 		let mut new_buf = [const { core::mem::MaybeUninit::uninit() }; N];
 
 		let new_ptr = new_buf.as_mut_ptr();
@@ -198,12 +200,16 @@ impl<const N: usize, T> Array<N, T> {
 	/// let array = unsafe { Array::from_parts_len(buf, len) };
 	/// ```
 	#[inline]
-	pub fn into_parts_len(self) -> ([core::mem::MaybeUninit<T>; N], usize) {
+	pub const fn into_parts_len(self) -> ([core::mem::MaybeUninit<T>; N], usize) {
 		let this = core::mem::ManuallyDrop::new(self);
-		let buf = unsafe {
-			core::ptr::read(&this.buf)
+		let this_ptr = &this as *const core::mem::ManuallyDrop<Self> as *const Self;
+		let buf;
+		let len;
+		unsafe {
+			buf = core::ptr::read(&(*this_ptr).buf);
+			len = (*this_ptr).len;
 		};
-		(buf, this.len)
+		(buf, len)
 	}
 
 	/// returns the total number of elements the array can hold.
@@ -217,7 +223,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert_eq!(array.capacity(), 16);
 	/// ```
 	#[inline]
-	pub fn capacity(&self) -> usize {
+	pub const fn capacity(&self) -> usize {
 		N
 	}
 
@@ -231,7 +237,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert_eq!(array.len(), 3);
 	/// ```
 	#[inline]
-	pub fn len(&self) -> usize {
+	pub const fn len(&self) -> usize {
 		self.len
 	}
 
@@ -267,7 +273,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn set_len(&mut self, new_len: usize) {
+	pub const unsafe fn set_len(&mut self, new_len: usize) {
 		self.len = new_len;
 	}
 
@@ -282,7 +288,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert!(array.is_empty());
 	/// ```
 	#[inline]
-	pub fn is_empty(&self) -> bool {
+	pub const fn is_empty(&self) -> bool {
 		self.len() == 0
 	}
 
@@ -300,11 +306,11 @@ impl<const N: usize, T> Array<N, T> {
 	/// let string = str::from_utf8(slice);
 	/// ```
 	#[inline]
-	pub fn as_slice(&self) -> &[T] {
-		let out = &self.buf[0..self.len];
-		// safety: all elements before `len` should always be initialized
+	pub const fn as_slice(&self) -> &[T] {
+		let ptr = &self.buf as *const core::mem::MaybeUninit<T> as *const T;
 		unsafe {
-			core::mem::transmute::<&[core::mem::MaybeUninit<T>], &[T]>(out)
+			// safety: all elements before `len` should always be initialized
+			core::slice::from_raw_parts(ptr, self.len)
 		}
 	}
 
@@ -322,11 +328,11 @@ impl<const N: usize, T> Array<N, T> {
 	/// let string = str::from_utf8_mut(slice);
 	/// ```
 	#[inline]
-	pub fn as_mut_slice(&mut self) -> &mut [T] {
-		let out = &mut self.buf[0..self.len];
-		// safety: all elements before `len` should always be initialized
+	pub const fn as_mut_slice(&mut self) -> &mut [T] {
+		let ptr = &mut self.buf as *mut core::mem::MaybeUninit<T> as *mut T;
 		unsafe {
-			core::mem::transmute::<&mut [core::mem::MaybeUninit<T>], &mut [T]>(out)
+			// safety: all elements before `len` should always be initialized
+			core::slice::from_raw_parts_mut(ptr, self.len)
 		}
 	}
 
@@ -335,7 +341,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// this pointer is valid so long as this array is valid. if the array is
 	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
-	pub fn as_ptr(&self) -> *const T {
+	pub const fn as_ptr(&self) -> *const T {
 		self.buf.as_ptr() as *const T
 	}
 
@@ -344,7 +350,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// this pointer is valid so long as this array is valid. if the array is
 	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
-	pub fn as_mut_ptr(&mut self) -> *mut T {
+	pub const fn as_mut_ptr(&mut self) -> *mut T {
 		self.buf.as_mut_ptr() as *mut T
 	}
 
@@ -418,7 +424,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// # }
 	/// ```
 	#[inline]
-	pub fn push_checked(&mut self, value: T) -> Result<(), T> {
+	pub const fn push_checked(&mut self, value: T) -> Result<(), T> {
 		if self.len() == self.capacity() {
 			Err(value)
 		} else {
@@ -460,7 +466,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn push_unchecked(&mut self, value: T) {
+	pub const unsafe fn push_unchecked(&mut self, value: T) {
 		unsafe {
 			let len = self.len();
 
@@ -488,7 +494,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert_eq!(array.pop(), None);
 	/// ```
 	#[inline]
-	pub fn pop(&mut self) -> Option<T> {
+	pub const fn pop(&mut self) -> Option<T> {
 		if self.is_empty() {
 			None
 		} else {
@@ -527,7 +533,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn pop_unchecked(&mut self) -> T {
+	pub const unsafe fn pop_unchecked(&mut self) -> T {
 		unsafe {
 			// safety: caller ensures there is at least one element.
 
@@ -606,7 +612,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// # }
 	/// ```
 	#[inline]
-	pub fn insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
+	pub const fn insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
 		if index > self.len() {
 			return Err(element);
 		}
@@ -654,7 +660,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn insert_unchecked(&mut self, index: usize, element: T) {
+	pub const unsafe fn insert_unchecked(&mut self, index: usize, element: T) {
 		unsafe {
 			let len = self.len();
 
@@ -735,7 +741,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// # }
 	/// ```
 	#[inline]
-	pub fn swap_insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
+	pub const fn swap_insert_checked(&mut self, index: usize, element: T) -> Result<(), T> {
 		if index > self.len() {
 			return Err(element);
 		}
@@ -783,7 +789,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn swap_insert_unchecked(&mut self, index: usize, element: T) {
+	pub const unsafe fn swap_insert_unchecked(&mut self, index: usize, element: T) {
 		unsafe {
 			let len = self.len();
 
@@ -862,7 +868,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert_eq!(array, [2, 3, 5]);
 	/// ```
 	#[inline]
-	pub fn remove_checked(&mut self, index: usize) -> Option<T> {
+	pub const fn remove_checked(&mut self, index: usize) -> Option<T> {
 		if index >= self.len() {
 			return None;
 		}
@@ -903,7 +909,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn remove_unchecked(&mut self, index: usize) -> T {		
+	pub const unsafe fn remove_unchecked(&mut self, index: usize) -> T {		
 		unsafe {
 			let len = self.len();
 
@@ -981,7 +987,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// assert_eq!(array, [6, 2, 5]);
 	/// ```
 	#[inline]
-	pub fn swap_remove_checked(&mut self, index: usize) -> Option<T> {
+	pub const fn swap_remove_checked(&mut self, index: usize) -> Option<T> {
 		let len = self.len();
 		if index >= len {
 			return None;
@@ -1024,7 +1030,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub unsafe fn swap_remove_unchecked(&mut self, index: usize) -> T {
+	pub const unsafe fn swap_remove_unchecked(&mut self, index: usize) -> T {
 		unsafe {
 			let len = self.len();
 
