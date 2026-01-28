@@ -44,8 +44,6 @@
 //! 
 //! of course, at this point, one should consider using `Vec` or similar.
 
-use core::mem::ManuallyDrop;
-
 /// stack-allocated array. see [module level documentation](self) for more.
 pub struct Array<const N: usize, T> {
 	buf: [core::mem::MaybeUninit<T>; N],
@@ -131,7 +129,7 @@ impl<const N: usize, T> Array<N, T> {
 
 		let mut new_buf = [const { core::mem::MaybeUninit::uninit() }; N];
 
-		let buf_ptr = &buf as *const ManuallyDrop<[T; M]> as *const T;
+		let buf_ptr = &buf as *const core::mem::ManuallyDrop<[T; M]> as *const T;
 		let new_ptr = new_buf.as_mut_ptr();
 
 		unsafe {
