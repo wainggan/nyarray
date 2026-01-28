@@ -77,7 +77,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// let vec = SwitchVec::<4, ()>::new();
 	/// ```
 	#[inline]
-	pub fn new() -> Self {
+	pub const fn new() -> Self {
 		Self {
 			inner: Inner::Stack(crate::array::Array::new())
 		}
@@ -132,7 +132,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// let vec = SwitchVec::from_array(array![0, 1, 2 => 4]);
 	/// ```
 	#[inline]
-	pub fn from_array(array: crate::array::Array<N, T>) -> Self {
+	pub const fn from_array(array: crate::array::Array<N, T>) -> Self {
 		Self {
 			inner: Inner::Stack(array)
 		}
@@ -168,7 +168,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// assert!(vec.capacity() > 8);
 	/// ```
 	#[inline]
-	pub fn capacity(&self) -> usize {
+	pub const fn capacity(&self) -> usize {
 		match &self.inner {
 			Inner::Stack(array) => array.capacity(),
 			#[cfg(feature = "std")]
@@ -192,7 +192,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// assert_eq!(vec.len(), 6);
 	/// ```
 	#[inline]
-	pub fn len(&self) -> usize {
+	pub const fn len(&self) -> usize {
 		match &self.inner {
 			Inner::Stack(array) => array.len(),
 			#[cfg(feature = "std")]
@@ -211,7 +211,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// assert!(vec.is_empty());
 	/// ```
 	#[inline]
-	pub fn is_empty(&self) -> bool {
+	pub const fn is_empty(&self) -> bool {
 		self.len() == 0
 	}
 
@@ -232,7 +232,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// assert!(vec.is_heap());
 	/// ```
 	#[inline]
-	pub fn is_heap(&self) -> bool {
+	pub const fn is_heap(&self) -> bool {
 		match &self.inner {
 			Inner::Stack(..) => false,
 			#[cfg(feature = "std")]
@@ -254,11 +254,11 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// let string = str::from_utf8(slice);
 	/// ```
 	#[inline]
-	pub fn as_slice(&self) -> &[T] {
+	pub const fn as_slice(&self) -> &[T] {
 		match &self.inner {
-			Inner::Stack(array) => array,
+			Inner::Stack(array) => array.as_slice(),
 			#[cfg(feature = "std")]
-			Inner::Heap(vec) => vec,
+			Inner::Heap(vec) => vec.as_slice(),
 		}
 	}
 
@@ -276,11 +276,11 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// let string = str::from_utf8_mut(slice);
 	/// ```
 	#[inline]
-	pub fn as_mut_slice(&mut self) -> &mut [T] {
+	pub const fn as_mut_slice(&mut self) -> &mut [T] {
 		match &mut self.inner {
-			Inner::Stack(array) => array,
+			Inner::Stack(array) => array.as_mut_slice(),
 			#[cfg(feature = "std")]
-			Inner::Heap(vec) => vec,
+			Inner::Heap(vec) => vec.as_mut_slice(),
 		}
 	}
 
@@ -293,7 +293,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// of the vector, so long as the vector is not moved. if an operation reallocates,
 	/// this pointer becomes invalid.
 	#[inline]
-	pub fn as_ptr(&self) -> *const T {
+	pub const fn as_ptr(&self) -> *const T {
 		match &self.inner {
 			Inner::Stack(array) => array.as_ptr(),
 			#[cfg(feature = "std")]
@@ -310,7 +310,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// of the vector, so long as the vector is not moved. if an operation reallocates,
 	/// this pointer becomes invalid.
 	#[inline]
-	pub fn as_mut_ptr(&mut self) -> *mut T {
+	pub const fn as_mut_ptr(&mut self) -> *mut T {
 		match &mut self.inner {
 			Inner::Stack(array) => array.as_mut_ptr(),
 			#[cfg(feature = "std")]
