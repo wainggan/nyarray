@@ -96,7 +96,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// ```
 	#[cfg(feature = "std")]
 	#[inline]
-	pub fn from_vec(vec: std::vec::Vec<T>) -> Self {
+	pub const fn from_vec(vec: std::vec::Vec<T>) -> Self {
 		Self {
 			inner: Inner::Heap(vec)
 		}
