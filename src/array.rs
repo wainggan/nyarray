@@ -199,13 +199,11 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub const fn into_parts_len(self) -> ([core::mem::MaybeUninit<T>; N], usize) {
+		let len = self.len;
 		let this = core::mem::ManuallyDrop::new(self);
 		let this_ptr = &this as *const core::mem::ManuallyDrop<Self> as *const Self;
-		let buf;
-		let len;
-		unsafe {
-			buf = core::ptr::read(&(*this_ptr).buf);
-			len = (*this_ptr).len;
+		let buf = unsafe {
+			core::ptr::read(&(*this_ptr).buf)
 		};
 		(buf, len)
 	}
@@ -399,10 +397,21 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.push(5); // panics
 	/// ```
 	#[inline]
-	pub fn push(&mut self, value: T) {
+	pub const fn push(&mut self, value: T) {
+		if self.len() == self.capacity() {
+			panic!("push exceeds capacity");
+		} else {
+			unsafe {
+				// safety: just confirmed there is enough space for another element
+				self.push_unchecked(value);
+			}
+		}
+		// todo: go back to using `Self::push_checked()` when const Drop is stable
+		/*
 		if self.push_checked(value).is_err() {
 			panic!("push exceeds capacity");
 		}
+		*/
 	}
 
 	/// add an element to the end of the array. returns `Err(T)` if
@@ -577,7 +586,21 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.insert(0, 5); // panics
 	/// ```
 	#[inline]
-	pub fn insert(&mut self, index: usize, element: T) {
+	pub const fn insert(&mut self, index: usize, element: T) {
+		if index > self.len() {
+			panic!("index out of bounds");
+		}
+
+		if self.len() + 1 > self.capacity() {
+			panic!("insert exceeds capacity");
+		}
+
+		unsafe {
+			// safety: just confirmed index is in bounds and there is enough capacity
+			self.insert_unchecked(index, element);
+		}
+		// todo: edit when const Drop
+		/*
 		if self.insert_checked(index, element).is_err() {
 			if index > self.len() {
 				panic!("index out of bounds");
@@ -585,6 +608,7 @@ impl<const N: usize, T> Array<N, T> {
 				panic!("insert exceeds capacity");
 			}
 		}
+		*/
 	}
 
 	/// insert an element into any index of the array, shifting
@@ -706,7 +730,21 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.swap_insert(0, 5); // panics
 	/// ```
 	#[inline]
-	pub fn swap_insert(&mut self, index: usize, element: T) {
+	pub const fn swap_insert(&mut self, index: usize, element: T) {
+		if index > self.len() {
+			panic!("index out of bounds");
+		}
+
+		if self.len() + 1 > self.capacity() {
+			panic!("insert exceeds capacity");
+		}
+
+		unsafe {
+			// safety: just confirmed index is in bounds and there is enough capacity
+			self.swap_insert_unchecked(index, element);
+		}
+		// todo: edit when const Drop
+		/*
 		if self.swap_insert_checked(index, element).is_err() {
 			if index > self.len() {
 				panic!("index out of bounds");
@@ -714,6 +752,7 @@ impl<const N: usize, T> Array<N, T> {
 				panic!("insert exceeds capacity");
 			}
 		}
+		*/
 	}
 
 	/// insert an element into any index of the array, moving the element
@@ -835,12 +874,21 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.remove(4); // panics
 	/// ```
 	#[inline]
-	pub fn remove(&mut self, index: usize) -> T {
-		if let Some(x) = self.remove_checked(index) {
-			x
-		} else {
+	pub const fn remove(&mut self, index: usize) -> T {
+		if index >= self.len() {
 			panic!("index out of bounds");
 		}
+
+		unsafe {
+			self.remove_unchecked(index)
+		}
+		// todo: edit when const Drop
+		/*
+		match self.remove_checked(index) {
+			Some(x) => x,
+			None => panic!("index out of bounds"),
+		}
+		*/
 	}
 
 	/// remove and return an element out of any index of the array,
@@ -872,6 +920,7 @@ impl<const N: usize, T> Array<N, T> {
 		}
 
 		unsafe {
+			// safety: just confirmed index is in bounds
 			Some(self.remove_unchecked(index))
 		}
 	}
@@ -954,12 +1003,16 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.swap_remove(4); // panics
 	/// ```
 	#[inline]
-	pub fn swap_remove(&mut self, index: usize) -> T {
-		if let Some(x) = self.swap_remove_checked(index) {
-			x
-		} else {
+	pub const fn swap_remove(&mut self, index: usize) -> T {
+		if index >= self.len() {
 			panic!("index out of bounds");
 		}
+
+		unsafe {
+			self.swap_remove_unchecked(index)
+		}
+		
+		// todo: edit when const Drop
 	}
 
 	/// remove and return an element from any index of the array,
@@ -986,8 +1039,7 @@ impl<const N: usize, T> Array<N, T> {
 	/// ```
 	#[inline]
 	pub const fn swap_remove_checked(&mut self, index: usize) -> Option<T> {
-		let len = self.len();
-		if index >= len {
+		if index >= self.len() {
 			return None;
 		}
 
