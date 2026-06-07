@@ -1,56 +1,56 @@
 //! a combination of the stack-allocated [`crate::array::Array`] and the heap-allocated `Vec`.
-//! 
+//!
 //! since this combines the functionality of both structures, the public api ends up being
 //! something of a union of what either can safely do, meaning there's a lot of functionality
 //! either `Vec` and `Array` individually have that `SwitchVec` doesn't.
-//! 
+//!
 //! ## examples
-//! 
+//!
 //! ```
 //! # use nyarray::switch::SwitchVec;
 //! let mut vec = SwitchVec::<16, _>::new(); // new vec with capacity of 16
-//! 
+//!
 //! // `SwitchVec` functions very similarly to `Vec`.
-//! 
+//!
 //! vec.push(1).unwrap();
 //! vec.push(2).unwrap();
 //!
 //! assert_eq!(vec.len(), 2);
 //! assert_eq!(vec[0], 1);
-//! 
+//!
 //! assert_eq!(vec.pop(), Some(2));
 //! assert_eq!(vec.len(), 1);
-//! 
+//!
 //! vec[0] = 7;
 //! assert_eq!(vec[0], 7);
-//! 
+//!
 //! vec.extend([1, 2, 3]);
-//! 
+//!
 //! for x in &vec {
 //!     println!("{x}");
 //! }
-//! 
+//!
 //! assert_eq!(vec, [7, 1, 2, 3]);
 //! ```
-//! 
+//!
 //! the differentiating detail here is that, by default, `SwitchVec` is stack-allocated.
 //! if the `std` feature is enabled, when its capacity is reached, it allocates on the heap.
-//! 
+//!
 //! ```
 //! # use nyarray::switch::SwitchVec;
 //! let mut vec = SwitchVec::<4, _>::new();
-//! 
+//!
 //! assert!(!vec.is_heap());
-//! 
+//!
 //! vec.push(1).unwrap();
 //! vec.push(2).unwrap();
 //! vec.push(3).unwrap();
 //! vec.push(4).unwrap();
-//! 
+//!
 //! assert!(!vec.is_heap());
-//! 
+//!
 //! vec.push(5).unwrap();
-//! 
+//!
 //! assert!(vec.is_heap());
 //! ```
 
@@ -69,9 +69,9 @@ pub struct SwitchVec<const N: usize, T> {
 impl<const N: usize, T> SwitchVec<N, T> {
 	/// construct a new [`SwitchVec`]. by default, it will be stack-allocated.
 	/// call [`Self::switch_heap()`] to switch to heap-allocation.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// let vec = SwitchVec::<4, ()>::new();
@@ -84,11 +84,11 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// construct a [`SwitchVec`] from a `Vec`.
-	/// 
+	///
 	/// this method is not available in `no_std`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use std::vec;
@@ -103,11 +103,11 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// deconstruct this vec into a `Vec`, or `Err` if [`Self::is_heap()`] is `false`.
-	/// 
+	///
 	/// this method is not available in `no_std`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use std::vec;
@@ -123,9 +123,9 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// construct a [`SwitchVec`] from an [`crate::array::Array`].
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
@@ -149,22 +149,22 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns the total number of elements the vector can hold without allocating.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![0, 1, 2 => 8]);
-	/// 
+	///
 	/// assert_eq!(vec.capacity(), 8);
-	/// 
+	///
 	/// vec.extend([3, 4, 5, 6, 7]);
-	/// 
+	///
 	/// assert_eq!(vec.capacity(), 8);
-	/// 
+	///
 	/// vec.extend([8, 9]);
-	/// 
+	///
 	/// assert!(vec.capacity() > 8);
 	/// ```
 	#[inline]
@@ -177,18 +177,18 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns the total number of elements inside the vector.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![0, 1, 2 => 8]);
-	/// 
+	///
 	/// assert_eq!(vec.len(), 3);
-	/// 
+	///
 	/// vec.extend([3, 4, 5]);
-	/// 
+	///
 	/// assert_eq!(vec.len(), 6);
 	/// ```
 	#[inline]
@@ -201,9 +201,9 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns `true` if the vector has zero elements, `false` otherwise.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
@@ -216,19 +216,19 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns `true` if the vector is heap-allocated, `false` otherwise.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// # use std::vec;
 	/// let vec = SwitchVec::<_, ()>::from_array(array![=> 8]);
-	/// 
+	///
 	/// assert!(!vec.is_heap());
-	/// 
+	///
 	/// let vec = SwitchVec::<8, ()>::from_vec(vec![]);
-	/// 
+	///
 	/// assert!(vec.is_heap());
 	/// ```
 	#[inline]
@@ -241,16 +241,16 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns a slice containing the vector.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::switch::SwitchVec;
 	/// let vector: SwitchVec<_, u8> = SwitchVec::from_array(array![=> 4]);
 	/// let slice: &[u8] = vector.as_slice();
 	/// // let slice: &[u8] = &vector[..]; // works the same
-	/// 
+	///
 	/// let string = str::from_utf8(slice);
 	/// ```
 	#[inline]
@@ -263,16 +263,16 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns a mutable slice containing the vector.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::switch::SwitchVec;
 	/// let mut vector: SwitchVec<_, u8> = SwitchVec::from_array(array![=> 4]);
 	/// let mut slice: &mut [u8] = vector.as_mut_slice();
 	/// // let mut slice: &mut [u8] = &mut vector[..]; // works the same
-	/// 
+	///
 	/// let string = str::from_utf8_mut(slice);
 	/// ```
 	#[inline]
@@ -285,10 +285,10 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns a raw pointer to the internal buffer.
-	/// 
+	///
 	/// if the vector is heap-allocated, this pointer is valid for the lifetime
 	/// of the vector. if an operation reallocates, this pointer becomes invalid.
-	/// 
+	///
 	/// if the vector is stack-allocated, this pointer is valid for the lifetime
 	/// of the vector, so long as the vector is not moved. if an operation reallocates,
 	/// this pointer becomes invalid.
@@ -302,10 +302,10 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// returns a mutable raw pointer to the internal buffer.
-	/// 
+	///
 	/// if the vector is heap-allocated, this pointer is valid for the lifetime
 	/// of the vector. if an operation reallocates, this pointer becomes invalid.
-	/// 
+	///
 	/// if the vector is stack-allocated, this pointer is valid for the lifetime
 	/// of the vector, so long as the vector is not moved. if an operation reallocates,
 	/// this pointer becomes invalid.
@@ -319,9 +319,9 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	}
 
 	/// removes all elements from the vector.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
@@ -341,20 +341,20 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// move this vector's elements onto the heap, if not already done so.
 	/// returns `true` if successful.
 	/// returns `false` if the operation failed for whatever reason.
-	/// 
+	///
 	/// in `no_std`, this is a no-op, and always returns `false``.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3 => 4]);
-	/// 
+	///
 	/// assert!(!vec.is_heap());
-	/// 
+	///
 	/// vec.switch_heap();
-	/// 
+	///
 	/// assert!(vec.is_heap());
 	/// ```
 	#[must_use]
@@ -412,22 +412,22 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// will be discarded.
 	/// returns `true` if successful.
 	/// returns `false` if the operation failed for whatever reason.
-	/// 
+	///
 	/// in `no_std`, this is a no-op, and always returns `true`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use std::vec;
 	/// let mut vec = SwitchVec::<4, _>::from_vec(vec![1, 2, 3, 4, 5]);
-	/// 
+	///
 	/// assert!(vec.is_heap());
-	/// 
+	///
 	/// vec.switch_stack();
-	/// 
+	///
 	/// assert!(!vec.is_heap());
-	/// 
+	///
 	/// assert_eq!(vec, [1, 2, 3, 4]);
 	/// ```
 	#[must_use]
@@ -475,26 +475,26 @@ impl<const N: usize, T> SwitchVec<N, T> {
 	/// ensure [`Self::capacity()`] has enough space for `additional` number of element.
 	/// returns `true` if there is enough space, or if not, memory was successfully allocated.
 	/// returns `false` if memory could not be allocated for whatever reason.
-	/// 
+	///
 	/// if [`Self::is_heap()`] is `false` and there isn't enough array capacity, this will
 	/// move the vector's elements to the heap.
-	/// 
+	///
 	/// if `no_std`, this is a no-op.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use std::vec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::<4, _>::from_array(array![1, 2, 3, 4]);
-	/// 
+	///
 	/// assert_eq!(vec.capacity(), 4);
 	/// assert_eq!(vec.len(), 4);
 	/// assert!(!vec.is_heap());
-	/// 
+	///
 	/// vec.reserve(4);
-	/// 
+	///
 	/// assert!(vec.capacity() >= 8);
 	/// assert_eq!(vec.len(), 4);
 	/// assert!(vec.is_heap());
@@ -516,7 +516,7 @@ impl<const N: usize, T> SwitchVec<N, T> {
 					let Inner::Heap(vec) = &mut self.inner else {
 						unreachable!();
 					};
-					
+
 					vec.try_reserve(additional).is_ok()
 				}
 				Inner::Heap(vec) => {
@@ -526,16 +526,19 @@ impl<const N: usize, T> SwitchVec<N, T> {
 		}
 		#[cfg(not(feature = "std"))]
 		{
-			_ = additional;
-			array.len() + additional <= array.capacity()
+			match &mut self.inner {
+				Inner::Stack(array) => {
+					array.len() + additional <= array.capacity()
+				}
+			}
 		}
 	}
 
 	/// add an element to the end of the vector, returning
 	/// `Err(T)` if the operation failed.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
@@ -562,9 +565,9 @@ impl<const N: usize, T> SwitchVec<N, T> {
 
 	/// remove and return an element from the end of the vector.
 	/// returns `None` if the vector is empty.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
@@ -585,20 +588,20 @@ impl<const N: usize, T> SwitchVec<N, T> {
 
 	/// insert an element into any index of the vector, shifting
 	/// all elements after towards the end.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3 => 4]);
-	/// 
+	///
 	/// vec.insert(2, 10).unwrap();
 	/// assert_eq!(vec, [1, 2, 10, 3]);
-	/// 
+	///
 	/// vec.insert(0, 20).unwrap();
 	/// assert_eq!(vec, [20, 1, 2, 10, 3]);
-	/// 
+	///
 	/// vec.insert(5, 30).unwrap();
 	/// assert_eq!(vec, [20, 1, 2, 10, 3, 30]);
 	/// ```
@@ -619,23 +622,23 @@ impl<const N: usize, T> SwitchVec<N, T> {
 
 	/// remove and return an element out of any index of the vector,
 	/// shifting all elements after towards the start.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3, 4, 5, 6 => 6]);
-	/// 
+	///
 	/// assert_eq!(vec.remove(0), Some(1));
 	/// assert_eq!(vec, [2, 3, 4, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(vec.remove(2), Some(4));
 	/// assert_eq!(vec, [2, 3, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(vec.remove(3), Some(6));
 	/// assert_eq!(vec, [2, 3, 5]);
-	/// 
+	///
 	/// assert_eq!(vec.remove(3), None);
 	/// ```
 	#[inline]
@@ -653,23 +656,23 @@ impl<const N: usize, T> SwitchVec<N, T> {
 
 	/// remove and return an element from any index of the vector,
 	/// moving the element that was previously at the end to there.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::switch::SwitchVec;
 	/// # use nyarray::array;
 	/// let mut vec = SwitchVec::from_array(array![1, 2, 3, 4, 5, 6 => 6]);
-	/// 
+	///
 	/// assert_eq!(vec.swap_remove(0), Some(1));
 	/// assert_eq!(vec, [6, 2, 3, 4, 5]);
-	/// 
+	///
 	/// assert_eq!(vec.swap_remove(2), Some(3));
 	/// assert_eq!(vec, [6, 2, 5, 4]);
-	/// 
+	///
 	/// assert_eq!(vec.swap_remove(3), Some(4));
 	/// assert_eq!(vec, [6, 2, 5]);
-	/// 
+	///
 	/// assert_eq!(vec.swap_remove(3), None);
 	/// ```
 	#[inline]
@@ -805,7 +808,7 @@ impl<const N: usize, T> DoubleEndedIterator for IntoIter<N, T> {
 impl<const N: usize, T> IntoIterator for SwitchVec<N, T> {
 	type IntoIter = IntoIter<N, T>;
 	type Item = T;
-	
+
 	fn into_iter(self) -> Self::IntoIter {
 		IntoIter {
 			inner: match self.inner {
@@ -893,4 +896,3 @@ impl<const N: usize, T: core::fmt::Debug> core::fmt::Debug for SwitchVec<N, T> {
 		core::fmt::Debug::fmt(self.as_slice(), f)
 	}
 }
-
