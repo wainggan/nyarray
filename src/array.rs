@@ -1,47 +1,47 @@
 //! stack-allocated array structure.
 //! similar to `Vec` in functionality, except [`Array`] lives on the 'stack',
 //! lending it well for scratch arrays.
-//! 
+//!
 //! this structure is basically a lightweight wrapper over a simple `[T; N]` array type.
-//! 
+//!
 //! ## examples
-//! 
+//!
 //! ```
 //! # use nyarray::array::Array;
 //! let mut array = Array::<16, _>::new(); // new array with capacity of 16
-//! 
+//!
 //! // `Array` functions very similarly to `Vec`.
-//! 
+//!
 //! array.push(1);
 //! array.push(2);
 //!
 //! assert_eq!(array.len(), 2);
 //! assert_eq!(array[0], 1);
-//! 
+//!
 //! assert_eq!(array.pop(), Some(2));
 //! assert_eq!(array.len(), 1);
-//! 
+//!
 //! array[0] = 7;
 //! assert_eq!(array[0], 7);
-//! 
+//!
 //! array.extend([1, 2, 3]);
-//! 
+//!
 //! for x in &array {
 //!     println!("{x}");
 //! }
-//! 
+//!
 //! assert_eq!(array, [7, 1, 2, 3]);
 //! ```
-//! 
+//!
 //! note that, while the terminology "stack-allocated" is used here, one can
 //! easily allocate this structure onto the heap like so:
-//! 
+//!
 //! ```
 //! # use nyarray::array::Array;
 //! # use std::boxed::Box;
 //! let array = Box::new(Array::<16, ()>::new());
 //! ```
-//! 
+//!
 //! of course, at this point, one should consider using `Vec` or similar.
 
 /// stack-allocated array. see [module level documentation](self) for more.
@@ -52,9 +52,9 @@ pub struct Array<const N: usize, T> {
 
 impl<const N: usize, T> Array<N, T> {
 	/// create a new [`Array`].
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array::Array;
 	/// let array = Array::<16, ()>::new(); // array with capacity of 16
@@ -68,25 +68,25 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// construct an array from a possibly uninitialized array.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// `buf[0..len]` must be fully initialized memory.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// this can be useful in combination with [`Self::into_parts_len()`] to
 	/// reconstruct the array after taking it apart for whatever reason.
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
 	/// let array = array![1, 2, 3 => 3];
-	/// 
+	///
 	/// let (buf, len) = array.into_parts_len();
-	/// 
+	///
 	/// // do whatever to `buf`
-	/// 
+	///
 	/// let array = unsafe { Array::from_parts_len(buf, len) };
 	/// ```
 	#[inline]
@@ -101,20 +101,20 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// construct an array from an initialized array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array::Array;
 	/// let array = Array::<16, i32>::from_parts([1, 2, 3, 4]);
 	/// assert_eq!(array, [1, 2, 3, 4]);
 	/// ```
-	/// 
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if the const parameter `M` is larger than the
 	/// array capacity (const parameter `N`).
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array::Array;
 	/// // note the input array is larger than the array capacity
@@ -140,29 +140,29 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// construct an array from a raw pointer.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// - `ptr` must point to memory valid for reads of `len` elements.
 	/// - `ptr` must be aligned.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array::Array;
 	/// # use std::vec;
 	/// let mut vec = vec![1, 2, 3];
 	/// let array;
-	/// 
+	///
 	/// unsafe {
 	///     let ptr = vec.as_ptr();
 	///     let len = vec.len();
 	///     vec.set_len(0);
 	///     array = Array::<4, _>::from_raw_parts(ptr, len);
 	/// }
-	/// 
+	///
 	/// assert_eq!(array, [1, 2, 3]);
-	/// ``` 
+	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
 	pub const unsafe fn from_raw_parts(ptr: *const T, len: usize) -> Self {
@@ -178,23 +178,23 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// deconstruct an array.
-	/// 
+	///
 	/// note that, let `ret` be the output, `ret.0[0..ret.1]` is valid memory. if
 	/// `T` is `Drop`, then forgetting to drop this will leak memory.
-	/// 
+	///
 	/// the easiest way to correctly drop this is to reconstruct the array with [`Self::from_parts_len()`].
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
 	/// let array = array![1, 2, 3 => 3];
-	/// 
+	///
 	/// let (buf, len) = array.into_parts_len();
-	/// 
+	///
 	/// // do whatever to `buf`
-	/// 
+	///
 	/// let array = unsafe { Array::from_parts_len(buf, len) };
 	/// ```
 	#[inline]
@@ -210,9 +210,9 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// returns the total number of elements the array can hold.
 	/// this function always returns the const `N` parameter of this array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let array = array![1, 2, 3 => 16];
@@ -224,9 +224,9 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns the total number of elements inside the array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let array = array![1, 2, 3 => 16];
@@ -238,19 +238,19 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// set the length of the array to `new_len`.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// this function should be used with care, as setting `new_len` to incorrect values
 	/// can easily expose safe code to uninitialized memory.
-	/// 
+	///
 	/// - `new_len` lesser or equal to [`Self::capacity()`]
 	/// - all elements `0..new_len` must be initialized.
-	/// 
+	///
 	/// consider using other safe functions, like [`Self::clear()`] or [`Self::extend()`].
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
@@ -274,9 +274,9 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns `true` if the array has zero elements, `false` otherwise.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
@@ -289,16 +289,16 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns a slice containing the array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
 	/// let array: Array<_, u8> = array![=> 4];
 	/// let slice: &[u8] = array.as_slice();
 	/// // let slice: &[u8] = &array[..]; // works the same
-	/// 
+	///
 	/// let string = str::from_utf8(slice);
 	/// ```
 	#[inline]
@@ -311,16 +311,16 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns a mutable slice containing the array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// # use nyarray::array::Array;
 	/// let mut array: Array<_, u8> = array![=> 4];
 	/// let mut slice: &mut [u8] = array.as_mut_slice();
 	/// // let mut slice: &mut [u8] = &mut array[..]; // works the same
-	/// 
+	///
 	/// let string = str::from_utf8_mut(slice);
 	/// ```
 	#[inline]
@@ -333,7 +333,7 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns a raw pointer to the internal buffer.
-	/// 
+	///
 	/// this pointer is valid so long as this array is valid. if the array is
 	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
@@ -342,7 +342,7 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// returns a mutable raw pointer to the internal buffer.
-	/// 
+	///
 	/// this pointer is valid so long as this array is valid. if the array is
 	/// dropped, or even moved, the pointer is immediately invalid.
 	#[inline]
@@ -351,9 +351,9 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// removes all elements from the array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 4];
@@ -370,9 +370,9 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// add an element to the end of the array.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![=> 4];
@@ -381,12 +381,12 @@ impl<const N: usize, T> Array<N, T> {
 	/// array.push(3);
 	/// assert_eq!(array, [1, 2, 3]);
 	/// ```
-	/// 
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if there isn't enough space for another element.
 	/// for a non-panicking version, see [`Self::push_checked()`].
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array;
 	/// let mut array = array![=> 4];
@@ -416,9 +416,9 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// add an element to the end of the array. returns `Err(T)` if
 	/// there is not enough capacity.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
@@ -444,17 +444,17 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// add an element to the end of the array.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::push()`] or
 	/// [`Self::push_checked()`] for safe versions of this.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// there must be enough capacity in the array for at least one more element
 	/// before calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
@@ -489,9 +489,9 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// remove and return an element from the end of the array.
 	/// returns `None` if the array is empty.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 4];
@@ -513,21 +513,21 @@ impl<const N: usize, T> Array<N, T> {
 	}
 
 	/// remove and return an element from the end of the array.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::pop()`] for
 	/// the safe version.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// there must be at least one element in the array prior to calling
 	/// this method. ie; [`Self::len()`] `!= 0`
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 4];
-	/// 
+	///
 	/// unsafe {
 	///     // safety: array has 3 elements
 	///     assert_eq!(array.pop_unchecked(), 3);
@@ -535,7 +535,7 @@ impl<const N: usize, T> Array<N, T> {
 	///     assert_eq!(array.pop_unchecked(), 1);
 	///     // array.pop_unchecked() // UB
 	/// }
-	/// 
+	///
 	/// assert!(array.is_empty());
 	/// ```
 	#[inline]
@@ -556,29 +556,29 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// insert an element into any index of the array, shifting
 	/// all elements after towards the end.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
-	/// 
+	///
 	/// array.insert(2, 10);
 	/// assert_eq!(array, [1, 2, 10, 3]);
-	/// 
+	///
 	/// array.insert(0, 20);
 	/// assert_eq!(array, [20, 1, 2, 10, 3]);
-	/// 
+	///
 	/// array.insert(5, 30);
 	/// assert_eq!(array, [20, 1, 2, 10, 3, 30]);
 	/// ```
-	///  
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if there isn't enough space for another element,
 	/// or if `index` is not `0..self.len()`.
 	/// for a non-panicking version, see [`Self::insert_checked()`].
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 4];
@@ -614,20 +614,20 @@ impl<const N: usize, T> Array<N, T> {
 	/// insert an element into any index of the array, shifting
 	/// all elements after towards the end. returns Err(T) if there
 	/// is not enough capacity, or if `index` is not `0..=self.len()`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
-	/// 
+	///
 	/// array.insert_checked(2, 10)?;
 	/// assert_eq!(array, [1, 2, 10, 3]);
-	/// 
+	///
 	/// array.insert_checked(0, 20)?;
 	/// assert_eq!(array, [20, 1, 2, 10, 3]);
-	/// 
+	///
 	/// array.insert_checked(5, 30)?;
 	/// assert_eq!(array, [20, 1, 2, 10, 3, 30]);
 	/// # Ok(())
@@ -653,22 +653,22 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// insert an element into any index of the array, shifting
 	/// all elements after towards the end.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::insert_checked()`] or
 	/// [`Self::insert()`] for safe versions.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// - there must be enough capacity in the array for at least one more element
 	///   prior to calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
 	/// - `index` `<=` [`Self::len()`]
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![=> 4];
-	/// 
+	///
 	/// unsafe {
 	///     // safety: array has capacity of 4 elements.
 	///     array.insert_unchecked(0, 1);
@@ -677,7 +677,7 @@ impl<const N: usize, T> Array<N, T> {
 	///     array.insert_unchecked(0, 4);
 	///     // array.insert_unchecked(0, 5); // UB
 	/// }
-	/// 
+	///
 	/// assert_eq!(array, [4, 3, 2, 1]);
 	/// ```
 	#[inline]
@@ -700,29 +700,29 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// insert an element into any index of the array, moving the element
 	/// that was previously there to the end.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
-	/// 
+	///
 	/// array.swap_insert(2, 10);
 	/// assert_eq!(array, [1, 2, 10, 3]);
-	/// 
+	///
 	/// array.swap_insert(0, 20);
 	/// assert_eq!(array, [20, 2, 10, 3, 1]);
-	/// 
+	///
 	/// array.swap_insert(5, 30);
 	/// assert_eq!(array, [20, 2, 10, 3, 1, 30]);
 	/// ```
-	///  
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if there isn't enough space for another element,
 	/// or if `index` is not `0..=self.len()`.
 	/// for a non-panicking version, see [`Self::swap_insert_checked()`].
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 4];
@@ -758,20 +758,20 @@ impl<const N: usize, T> Array<N, T> {
 	/// insert an element into any index of the array, moving the element
 	/// that was previously there to the end. returns Err(T) if there
 	/// is not enough capacity, or if `index` is not `0..=self.len()`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # fn main() -> Result<(), i32> {
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3 => 6];
-	/// 
+	///
 	/// array.swap_insert_checked(2, 10)?;
 	/// assert_eq!(array, [1, 2, 10, 3]);
-	/// 
+	///
 	/// array.swap_insert_checked(0, 20)?;
 	/// assert_eq!(array, [20, 2, 10, 3, 1]);
-	/// 
+	///
 	/// array.swap_insert_checked(5, 30)?;
 	/// assert_eq!(array, [20, 2, 10, 3, 1, 30]);
 	/// # Ok(())
@@ -797,22 +797,22 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// insert an element into any index of the array, moving the element
 	/// that was previously there to the end.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::swap_insert_checked()`]
 	/// or [`Self::swap_insert()`] for safe versions.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// - there must be enough capacity in the array for at least one more element
 	///   prior to calling this method. ie; [`Self::len()`] `<` [`Self::capacity()`].
 	/// - `index` `<=` [`Self::len()`]
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![=> 4];
-	/// 
+	///
 	/// unsafe {
 	///     // safety: array has a capacity of 4
 	///     array.swap_insert_unchecked(0, 1);
@@ -821,7 +821,7 @@ impl<const N: usize, T> Array<N, T> {
 	///     array.swap_insert_unchecked(0, 4);
 	///     // array.swap_insert_unchecked(0, 5); // UB
 	/// }
-	/// 
+	///
 	/// assert_eq!(array, [4, 1, 2, 3])
 	/// ```
 	#[inline]
@@ -839,35 +839,35 @@ impl<const N: usize, T> Array<N, T> {
 
 			core::ptr::write(new_ptr, element);
 			core::ptr::swap(old_ptr, new_ptr);
-			
+
 			self.set_len(len + 1);
 		}
 	}
 
 	/// remove and return an element out of any index of the array,
 	/// shifting all elements after towards the start.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4, 5, 6 => 6];
-	/// 
+	///
 	/// assert_eq!(array.remove(0), 1);
 	/// assert_eq!(array, [2, 3, 4, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(array.remove(2), 4);
 	/// assert_eq!(array, [2, 3, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(array.remove(3), 6);
 	/// assert_eq!(array, [2, 3, 5]);
 	/// ```
-	/// 
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if `index` is not `0..self.len()`.
 	/// for a non-panicking version, see [`Self::remove_checked()`].
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4 => 4];
@@ -894,22 +894,22 @@ impl<const N: usize, T> Array<N, T> {
 	/// remove and return an element out of any index of the array,
 	/// shifting all elements after towards the start. returns `None`
 	/// if `index` is not `0..self.len()`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4, 5, 6 => 6];
-	/// 
+	///
 	/// assert_eq!(array.remove_checked(0), Some(1));
 	/// assert_eq!(array, [2, 3, 4, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(array.remove_checked(2), Some(4));
 	/// assert_eq!(array, [2, 3, 5, 6]);
-	/// 
+	///
 	/// assert_eq!(array.remove_checked(3), Some(6));
 	/// assert_eq!(array, [2, 3, 5]);
-	/// 
+	///
 	/// assert_eq!(array.remove_checked(3), None);
 	/// assert_eq!(array, [2, 3, 5]);
 	/// ```
@@ -927,22 +927,22 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// remove and return an element out of any index of the array,
 	/// shifting all elements after towards the start.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::remove_checked()`]
 	/// or [`Self::remove()`] for safe versions.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// - there must be at least one element in the array prior to calling
 	///   this method. ie; [`Self::len()`] `!= 0`
 	/// - `index` `<` [`Self::len()`]
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4 => 4];
-	/// 
+	///
 	/// unsafe {
 	///     // safety: array has 4 elements.
 	///     assert_eq!(array.remove_unchecked(0), 1);
@@ -951,12 +951,12 @@ impl<const N: usize, T> Array<N, T> {
 	///     assert_eq!(array.remove_unchecked(0), 4);
 	///     // array.remove_unchecked(0) // UB
 	/// }
-	/// 
+	///
 	/// assert!(array.is_empty());
 	/// ```
 	#[inline]
 	#[expect(clippy::missing_safety_doc, reason = "there is a safety doc, not sure why the lint still generates")]
-	pub const unsafe fn remove_unchecked(&mut self, index: usize) -> T {		
+	pub const unsafe fn remove_unchecked(&mut self, index: usize) -> T {
 		unsafe {
 			let len = self.len();
 
@@ -975,28 +975,28 @@ impl<const N: usize, T> Array<N, T> {
 
 	/// remove and return an element from any index of the array,
 	/// moving the element that was previously at the end to there.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4, 5, 6 => 6];
-	/// 
+	///
 	/// assert_eq!(array.swap_remove(0), 1);
 	/// assert_eq!(array, [6, 2, 3, 4, 5]);
-	/// 
+	///
 	/// assert_eq!(array.swap_remove(2), 3);
 	/// assert_eq!(array, [6, 2, 5, 4]);
-	/// 
+	///
 	/// assert_eq!(array.swap_remove(3), 4);
 	/// assert_eq!(array, [6, 2, 5]);
 	/// ```
-	/// 
+	///
 	/// ## panics
-	/// 
+	///
 	/// this method panics if `index` is not `0..=self.len()`.
 	/// for a non-panicking version, see [`Self::swap_remove_checked()`].
-	/// 
+	///
 	/// ```should_panic
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4 => 4];
@@ -1011,29 +1011,29 @@ impl<const N: usize, T> Array<N, T> {
 		unsafe {
 			self.swap_remove_unchecked(index)
 		}
-		
+
 		// todo: edit when const Drop
 	}
 
 	/// remove and return an element from any index of the array,
 	/// moving the element that was previously at the end to there.
 	/// returns `None` if `index` is not `0..self.len()`.
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4, 5, 6 => 6];
-	/// 
+	///
 	/// assert_eq!(array.swap_remove_checked(0), Some(1));
 	/// assert_eq!(array, [6, 2, 3, 4, 5]);
-	/// 
+	///
 	/// assert_eq!(array.swap_remove_checked(2), Some(3));
 	/// assert_eq!(array, [6, 2, 5, 4]);
-	/// 
+	///
 	/// assert_eq!(array.swap_remove_checked(3), Some(4));
 	/// assert_eq!(array, [6, 2, 5]);
-	/// 
+	///
 	/// assert_eq!(array.swap_remove_checked(3), None);
 	/// assert_eq!(array, [6, 2, 5]);
 	/// ```
@@ -1051,22 +1051,22 @@ impl<const N: usize, T> Array<N, T> {
 	/// remove and return an element from any index of the array,
 	/// moving the element that was previously at the end to there.
 	/// returns `None` if `index` is not `0..self.len()`.
-	/// 
+	///
 	/// this is the unsafe version of this method. see [`Self::swap_remove_checked()`]
 	/// or [`Self::swap_remove()`] for safe versions.
-	/// 
+	///
 	/// ## safety
-	/// 
+	///
 	/// - there must be at least one element in the array prior to calling
 	///   this method. ie; [`Self::len()`] `!= 0`
 	/// - `index` `<` [`Self::len()`]
-	/// 
+	///
 	/// ## examples
-	/// 
+	///
 	/// ```
 	/// # use nyarray::array;
 	/// let mut array = array![1, 2, 3, 4 => 4];
-	/// 
+	///
 	/// unsafe {
 	///     // safety: array has 4 elements.
 	///     assert_eq!(array.swap_remove_unchecked(0), 1);
@@ -1075,7 +1075,7 @@ impl<const N: usize, T> Array<N, T> {
 	///     assert_eq!(array.swap_remove_unchecked(0), 2);
 	///     // array.swap_remove_unchecked(0) // UB
 	/// }
-	/// 
+	///
 	/// assert!(array.is_empty());
 	/// ```
 	#[inline]
@@ -1085,14 +1085,14 @@ impl<const N: usize, T> Array<N, T> {
 			let len = self.len();
 
 			let ptr = self.as_mut_ptr();
-			
+
 			// safety: caller ensures index is in bounds and there is at least one element
 			let old = core::ptr::read(ptr.add(index));
-			
+
 			core::ptr::copy(ptr.add(len - 1), ptr.add(index), 1);
-			
+
 			self.set_len(len - 1);
-			
+
 			old
 		}
 	}
@@ -1245,7 +1245,7 @@ impl<const N: usize, T> DoubleEndedIterator for IntoIter<N, T> {
 impl<const N: usize, T> IntoIterator for Array<N, T> {
 	type IntoIter = IntoIter<N, T>;
 	type Item = T;
-	
+
 	fn into_iter(self) -> Self::IntoIter {
 		let (buf, len) = self.into_parts_len();
 		IntoIter {
@@ -1335,11 +1335,11 @@ impl<const N: usize, T: core::fmt::Debug> core::fmt::Debug for Array<N, T> {
 
 
 /// create an [`Array`].
-/// 
+///
 /// like `vec!`, `array!` has similar syntax as Rust array expressions, with
 /// the addition of allowing one to specify the capacity of the `Array`
 /// by appending an `=>`:
-/// 
+///
 /// ```
 /// # use nyarray::array;
 /// let array = array![1, 2, 3 => 6]; // capacity of 6 elements
@@ -1397,15 +1397,15 @@ mod test {
 		}
 
 		let array = array![Box::new(1), Box::new(2), Box::new(3) => 4];
-		
+
 		drop(array);
-		
+
 		assert_eq!(unsafe { NUM }, 3);
-		
+
 		let array = array![Box::new(1), Box::new(2), Box::new(3) => 4];
 		let mut iter = array.into_iter();
 		iter.next();
-		
+
 		drop(iter);
 
 		assert_eq!(unsafe { NUM }, 6);
@@ -1417,4 +1417,3 @@ mod test {
 		let _ = array.iter().cloned().collect::<crate::array::Array<4, _>>();
 	}
 }
-

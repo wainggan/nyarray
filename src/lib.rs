@@ -7,4 +7,3 @@ extern crate std;
 
 pub mod array;
 pub mod switch;
-
